@@ -1,0 +1,261 @@
+'''
+    Authors: Chandler Mitchell, Evan Mele
+    Date Last Modified: 4/18/19
+
+    CSCI250 Capstone
+
+    SoundProcessor3000:
+    
+    This Device will record stereo audio via a 3.5 mm audio jack and/or via
+    a Sound Detector. These analog signals will be read in with ADC chips.
+    Graphs of songs and other analytics will be produced from the audio sampled.
+
+    main.py---Diplays menu and options for user to interact with
+'''
+
+# Import Statements
+import menus
+import fileIO
+import graph
+import adcDevice
+import os
+import analytics as anal
+import numpy as np
+import gpiozero as gpz
+
+# Data arrays
+dataLeft = np.array([]) # left input data from jack
+dataRight = np.array([]) # right input data from jack
+dataAudio = np.array([]) # audio input data from mic
+dataEnvelope = np.array([]) # envelope input data from mic
+dataTime = np.array([]) # time data
+
+# Initialize gpio components
+exitButton = gpz.Button(18) # Exit button set to pin 18
+samplingButton = gpz.Button(21) # Start stop button set to pin 21
+
+#Initialize ADCs
+adc0 = adcDevice.adcDevice(0, samplingButton, 0)
+adc1 = adcDevice.adcDevice(1, samplingButton, 0)
+
+
+'''TESTING-------------------------
+dataLeft = np.append(dataLeft, 'A')
+dataRight = np.append(dataRight, 'B')
+dataTime = np.append(dataTime, 'C')
+--------------------------------'''
+
+# Main of program
+#
+# Reads in user input and performs the corresponding functionality
+
+# Print opening text and menu
+print("~~~~~SoundProcessor3000~~~~~\n")
+print("Press the Red Button then Enter to Exit at Anytime\n")
+
+# kills program after user input when red button pressed
+def terminate():
+    os._exit(1)
+
+try:
+
+    # Exit on button press
+    exitButton.when_pressed = terminate
+    
+    while(True):
+        
+        menus.printMainMenu()
+
+        # Evaluate user input
+        userInput = str(input())
+        print()
+        if userInput == "1": # Collect Data
+
+            while(True):
+                menus.printSensorMenu()
+                userInput = str(input())
+                print()
+                if userInput == "1": # Microphone
+
+                    while(True):
+                        menus.printSamplingMenu()
+                        userInput = str(input())
+                        print()
+                        if userInput == "1": # Time
+                            print("Enter a time (sec) to sample: ", end = "")
+                            userTime = float(input())
+                            adc0.setTime(userTime)
+                            tempData = adc0.readAdcSec()
+                            dataAudio = tempData[0]
+                            dataEnvelope = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "2": # While Button Pressed
+                            tempData = adc0.readAdcButtonContinuous()
+                            dataAudio = tempData[0]
+                            dataEnvelope = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "3": # Button Start/Stop
+                            tempData = adc0.readAdcButtonStartStop()
+                            dataAudio = tempData[0]
+                            dataEnvelope = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "4": # Previous Menu
+                            break
+                        else:
+                            print("Not a Valid Option\n")
+                    
+                elif userInput == "2": # Audio Jack
+
+                    while(True):
+                        menus.printSamplingMenu()
+                        userInput = str(input())
+                        print()
+                        if userInput == "1": # Time
+                            print("Enter a time (sec) to sample: ", end = "")
+                            userTime = float(input())
+                            adc1.setTime(userTime)
+                            tempData = adc1.readAdcSec()
+                            dataLeft = tempData[0]
+                            dataRight = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "2": # While Button Pressed
+                            tempData = adc1.readAdcButtonContinuous()
+                            dataLeft = tempData[0]
+                            dataRight = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "3": # Button Start/Stop
+                            tempData = adc1.readAdcButtonStartStop()
+                            dataLeft = tempData[0]
+                            dataRight = tempData[1]
+                            dataTime = tempData[2]
+                        elif userInput == "4": # Previous Menu
+                            break
+                        else:
+                            print("Not a Valid Option\n")
+                            
+                elif userInput == "3": # Previous Menu
+                    break
+                else:
+                    print("Not a Valid Option\n")
+                    
+        elif userInput == "2": # Read Data From File
+            # Save data in local variables
+            dataDict = fileIO.readData()
+            dataAudio = dataDict['a']
+            dataLeft = dataDict['a']
+            dataEnvelope = dataDict['b']
+            dataRight = dataDict['b']
+            dataTime = dataDict['c']
+    
+        elif userInput == "3": # Save/Display Data
+
+            while(True):
+                menus.printSaveDisplayMenu()
+                userInput = str(input())
+                print()
+                if userInput == "1": # Display Data
+
+                    while(True):
+                        menus.printGraphMenu()
+                        userInput = str(input())
+                        print()
+                        if userInput == "1": # Graph Microphone Data
+                            print("Enter a file name for the graph: ", end = "")
+                            userFile = str(input())
+                            graph.plotMic(dataAudio, dataEnvelope, dataTime, userFile)
+                        elif userInput == "2": # Graph Audio Jack Data
+                            print("Enter a file name for the graph: ", end = "")
+                            userFile = str(input())
+                            graph.plotJack(dataLeft, dataRight, dataTime, userFile)
+                        elif userInput == "3": # Graph Smooth Microphone Data
+                            print("Enter a file name for the graph: ", end = "")
+                            userFile = str(input())
+                            print("Enter a smooth factor (higher number means more averaged data and longer processing time): ", end = "")
+                            smoothFactor = int(input())
+                            #Smooth data
+                            smoothAudio = anal.smoothData(dataAudio, smoothFactor)
+                            smoothAudio = anal.abs(smoothAudio)
+                            smoothEnvelope = anal.smoothData(dataEnvelope, smoothFactor)
+                            smoothEnvelope = anal.abs(smoothEnvelope)
+                            graph.plotJack(smoothAudio, smoothEnvelope, dataTime, userFile)
+                        elif userInput == "4": # Graph Smooth Audio Jack Data
+                            print("Enter a file name for the graph: ", end = "")
+                            userFile = str(input())
+                            print("Enter a smooth factor (higher number means more averaged data and longer processing time): ", end = "")
+                            smoothFactor = int(input())
+                            #Smooth data
+                            smoothLeft = anal.smoothData(dataLeft, smoothFactor)
+                            smoothLeft = anal.abs(smoothLeft)
+                            smoothRight = anal.smoothData(dataRight, smoothFactor)
+                            smoothRight = anal.abs(smoothRight)
+                            graph.plotJack(smoothLeft, smoothRight, dataTime, userFile)
+                        elif userInput == "5": # Graph Left Minus Right
+                            print("Enter a file name for the graph: ", end = "")
+                            userFile = str(input())
+                            leftMinusRight = anal.leftMinusRight(dataLeft, dataRight)
+                            absLMR = anal.abs(leftMinusRight)
+                            graph.plotGeneric(leftMinusRight, absLMR, dataTime, userFile, ["Left Minus Right", "Absolute Value Left Minus Right"], ["Time (s)", "Time (s)"], ["Left Minus Right", "Left Minus Right"])
+                        elif userInput == "6": # Previous Menu
+                            break
+                        else:
+                            print("Not a Valid Option\n")
+                            
+                elif userInput == "2": # Save Data to File
+
+                    while(True):
+                        menus.printSaveMenu()
+                        userInput = str(input())
+                        print()
+                        if userInput == "1": # Microphone Data
+                            # Save mic data
+                            fileIO.saveData(dataAudio, dataEnvelope, dataTime)
+                        elif userInput == "2": # Audio Jack Data
+                            # Save jack data
+                            fileIO.saveData(dataLeft, dataRight, dataTime)
+                        elif userInput == "3": # Previous Menu
+                            break
+                        else:
+                            print("Not a Valid Option\n")
+                            
+                elif userInput == "3": # Previous Menu
+                    break
+                else:
+                    print("Not a Valid Option\n")
+
+        elif userInput == "4": # Generate and Display Statistics
+
+            while(True):
+                menus.printAnalyticsMenu()
+                userInput = str(input())
+                print()
+                if userInput == "1": # General Statistics
+
+                    menus.printSensorMenu()
+                    userInput = str(input())
+                    print()
+                    if userInput == "1": # Microphone
+                        anal.generalMicData(dataAudio, dataEnvelope)
+                    elif userInput == "2": # Audio Jack
+                        anal.generalJackData(dataLeft, dataRight)
+                    elif userInput == "3": # Previous Menu
+                        break
+                    else:
+                        print("Not a Valid Option\n")
+                        
+                elif userInput == "2": # Dominating Signal Perentages
+                    print("Left signal is louder %f%% of the time" % anal.leftLouder(dataLeft, dataRight))
+                    print("Right signal is louder %f%% of the time" % anal.rightLouder(dataLeft, dataRight))
+                elif userInput == "3": # Previous Menu
+                    break
+                else:
+                    print("Not a Valid Option\n")
+                    
+        else:
+            print("Not a Valid Option\n")
+            
+
+except(KeyboardInterrupt, SystemExit, TypeError, KeyError):
+    print("Interrupt!")
+
+finally:
+    print("Exiting...")
